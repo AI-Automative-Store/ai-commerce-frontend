@@ -32,22 +32,25 @@ export function useSearch() {
             setError(null);
 
             try {
-                const response = await searchService.semanticSearch(debouncedQuery);
-                setResults(response.data);
-                addToHistory(debouncedQuery);
-            } catch (err) {
-                console.warn('Backend not connected, using mock search results');
-                // Fallback to local mock filtering
-                const { mockProducts } = await import('@/lib/mockData');
+                // Future Phase 3: use searchService.semanticSearch
+                // For Phase 1, we pull all products and filter locally
+                const { productService } = await import('@/services/product.service');
+                const response = await productService.getProducts();
+                const allProducts = response.data.products;
+
                 const lowerQuery = debouncedQuery.toLowerCase();
-                const filtered = mockProducts.filter(p =>
+                const filtered = allProducts.filter(p =>
                     p.name.toLowerCase().includes(lowerQuery) ||
                     p.description.toLowerCase().includes(lowerQuery) ||
                     p.category.toLowerCase().includes(lowerQuery) ||
                     p.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
                 );
+
                 setResults(filtered);
                 addToHistory(debouncedQuery);
+            } catch (err) {
+                console.error('Failed to search products', err);
+                setError('Failed to load search results');
             } finally {
                 setIsLoading(false);
             }
@@ -65,18 +68,20 @@ export function useSearch() {
 
         const fetchSuggestions = async () => {
             try {
-                const response = await searchService.getSuggestions(query);
-                setSuggestions(response.data);
-            } catch (err) {
-                // Silently fail and fallback to mock data
-                // console.warn('Search suggestions API failed, using mock data');
-                const { mockProducts } = await import('@/lib/mockData');
+                // Future Phase 3: use searchService.getSuggestions
+                const { productService } = await import('@/services/product.service');
+                const response = await productService.getProducts();
+                const allProducts = response.data.products;
+
                 const lowerQuery = query.toLowerCase();
-                const suggestions = mockProducts
+                const suggestionList = allProducts
                     .filter(p => p.name.toLowerCase().includes(lowerQuery))
                     .map(p => p.name)
                     .slice(0, 5);
-                setSuggestions(suggestions);
+                setSuggestions(suggestionList);
+            } catch (err) {
+                console.error('Failed to load suggestions', err);
+                setSuggestions([]);
             }
         };
 

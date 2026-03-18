@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -12,6 +12,9 @@ interface SearchBarProps {
 
 export function SearchBar({ onSearch, initialQuery = '', className }: SearchBarProps) {
     const [query, setQuery] = useState(initialQuery);
+    useEffect(() => {
+        setQuery(initialQuery);
+    }, [initialQuery]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

@@ -1,5 +1,4 @@
 import { Product } from '@/types/product.types';
-import { mockProducts } from './mockData';
 
 export interface Recommendation {
     product: Product;
@@ -42,15 +41,21 @@ const CATEGORY_RULES: Record<string, { id: string; reason: string; type: Recomme
     ]
 };
 
-export function getSmartRecommendations(cartItems: Product[]): Recommendation[] {
+import { productService } from '@/services/product.service';
+
+export async function getSmartRecommendations(cartItems: Product[]): Promise<Recommendation[]> {
     const recommendations = new Map<string, Recommendation>();
+
+    // Fetch all products from API to evaluate recommendations
+    const response = await productService.getProducts();
+    const allProducts = response.data.products;
 
     // 1. Specific Product Rules
     cartItems.forEach(item => {
         const rules = RECOMMENDATION_RULES[item.id];
         if (rules) {
             rules.forEach(rule => {
-                const product = mockProducts.find(p => p.id === rule.id);
+                const product = allProducts.find(p => p.id === rule.id);
                 if (product && !recommendations.has(product.id)) {
                     recommendations.set(product.id, { product, reason: rule.reason, type: rule.type });
                 }
@@ -64,7 +69,7 @@ export function getSmartRecommendations(cartItems: Product[]): Recommendation[] 
             const rules = CATEGORY_RULES[item.category];
             if (rules) {
                 rules.forEach(rule => {
-                    const product = mockProducts.find(p => p.id === rule.id);
+                    const product = allProducts.find(p => p.id === rule.id);
                     if (product && !recommendations.has(product.id)) {
                         recommendations.set(product.id, { product, reason: rule.reason, type: rule.type });
                     }

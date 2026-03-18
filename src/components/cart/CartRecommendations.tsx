@@ -12,8 +12,16 @@ export function CartRecommendations() {
 
     useEffect(() => {
         if (items.length > 0) {
-            const recs = getSmartRecommendations(items);
-            setRecommendations(recs);
+            const fetchRecs = async () => {
+                try {
+                    const recs = await getSmartRecommendations(items);
+                    setRecommendations(recs);
+                } catch (error) {
+                    console.error("Failed to fetch recommendations:", error);
+                    setRecommendations([]);
+                }
+            };
+            fetchRecs();
         } else {
             setRecommendations([]);
         }
@@ -44,7 +52,7 @@ export function CartRecommendations() {
                 </div>
 
                 {/* Fade effect on right */}
-                <div className="absolute right-0 top-0 bottom-8 w-24 bg-gradient-to-l from-white to-transparent pointer-events-none md:hidden" />
+                <div className="absolute right-0 top-0 bottom-8 w-24 bg-linear-to-l from-white to-transparent pointer-events-none md:hidden" />
             </div>
         </div>
     );

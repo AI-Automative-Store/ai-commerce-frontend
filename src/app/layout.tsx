@@ -10,6 +10,8 @@ const inter = Inter({
   display: 'swap',
 });
 
+import Providers from './providers';
+
 export const metadata: Metadata = {
   title: 'Exclusive - Best Shopping Experience',
   description: 'AI-powered e-commerce platform with semantic search and personalized recommendations',
@@ -21,13 +23,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="font-sans antialiased flex flex-col min-h-screen bg-white text-black">
-        <Navbar />
-        <main className="grow">
-          {children}
-        </main>
-        <Footer />
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <body className="font-sans antialiased flex flex-col min-h-screen bg-white text-black" suppressHydrationWarning>
+        <Providers>
+          <Navbar />
+          <main className="grow">
+            {children}
+          </main>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

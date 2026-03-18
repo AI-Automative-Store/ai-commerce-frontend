@@ -6,8 +6,10 @@ import { useCart } from '@/hooks/useCart';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { formatPrice } from '@/lib/format';
-import { mockProducts } from '@/lib/mockData';
+import { productService } from '@/services/product.service';
+import { useQuery } from '@tanstack/react-query';
 import { useState, use } from 'react';
+import { Loader2, XCircle } from 'lucide-react';
 
 // Next.js 15: params is a Promise
 interface ProductPageProps {
@@ -24,10 +26,30 @@ export default function ProductPage({ params }: ProductPageProps) {
     const { addItem } = useCart();
     const [selectedImage, setSelectedImage] = useState(0);
 
-    const product = mockProducts.find((p) => p.slug === slug);
+    const { data: response, isLoading, isError } = useQuery({
+        queryKey: ['product', slug],
+        queryFn: () => productService.getProductBySlug(slug),
+    });
 
-    if (!product) {
-        notFound();
+    const product = response?.data;
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+                <Loader2 className="w-12 h-12 text-black animate-spin mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Loading product details...</h3>
+            </div>
+        );
+    }
+
+    if (isError || !product) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+                <XCircle className="w-12 h-12 text-red-500 mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Product not found</h3>
+                <p className="text-gray-500">The product you're looking for doesn't exist.</p>
+            </div>
+        );
     }
 
     return (

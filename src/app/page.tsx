@@ -1,6 +1,7 @@
 'use client';
 
-import { mockProducts } from '@/lib/mockData';
+import { useQuery } from '@tanstack/react-query';
+import { productService } from '@/services/product.service';
 import { ShopHero } from '@/components/shop/ShopHero';
 import { FilterSidebar } from '@/components/shop/FilterSidebar';
 import { ShopProductCard } from '@/components/shop/ShopProductCard';
@@ -8,14 +9,21 @@ import { Newsletter } from '@/components/shop/Newsletter';
 import { Button } from '@/components/ui/Button';
 import { useFilterStore } from '@/store/filter.store';
 import { useMemo } from 'react';
-import { XCircle } from 'lucide-react';
+import { XCircle, Loader2 } from 'lucide-react';
 
 export default function Home() {
   const { selectedCategories, priceRange, searchQuery, resetFilters } = useFilterStore();
 
+  const { data: response, isLoading, isError } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productService.getProducts(),
+  });
+
+  const products = response?.data?.products || [];
+
   const filteredProducts = useMemo(() => {
-    return mockProducts.filter((product) => {
-      // Search Filter
+    return products.filter((product) => {
+      // Search Filter (Client-side for now until full Semantic Search is built)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesSearch =
@@ -41,7 +49,7 @@ export default function Home() {
 
       return true;
     });
-  }, [selectedCategories, priceRange]);
+  }, [products, selectedCategories, priceRange, searchQuery]);
 
   return (
     <div className="w-full min-h-screen bg-white pb-12">
@@ -74,7 +82,18 @@ export default function Home() {
             </div>
 
             {/* Grid */}
-            {filteredProducts.length > 0 ? (
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
+                <Loader2 className="w-12 h-12 text-black animate-spin mb-4" />
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Loading products...</h3>
+              </div>
+            ) : isError ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
+                <XCircle className="w-12 h-12 text-red-500 mb-4" />
+                <h3 className="text-xl font-bold font-red-900 mb-2">Failed to load products</h3>
+                <p className="text-gray-500">Please check your connection and try again.</p>
+              </div>
+            ) : filteredProducts.length > 0 ? (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
                   {filteredProducts.map((product) => (

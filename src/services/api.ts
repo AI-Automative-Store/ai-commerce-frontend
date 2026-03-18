@@ -3,7 +3,7 @@
  * Centralized API client setup with interceptors
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 interface ApiResponse<T = any> {
   data: T;
@@ -18,6 +18,13 @@ class ApiClient {
     this.baseURL = baseURL;
   }
 
+  private getAuthHeaders(): Record<string, string> {
+    if (typeof window === 'undefined') return {};
+    const token = localStorage.getItem('auth_token');
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -28,6 +35,7 @@ class ApiClient {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
         ...options.headers,
       },
     };

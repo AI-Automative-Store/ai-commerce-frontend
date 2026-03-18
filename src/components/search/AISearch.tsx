@@ -4,13 +4,21 @@ import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useFilterStore } from "@/store/filter.store";
-import { mockProducts } from "@/lib/mockData";
+import { productService } from "@/services/product.service";
+import { useQuery } from "@tanstack/react-query";
 import { Product } from "@/types/product.types";
+
 export function AISearch() {
     const { searchQuery, setSearchQuery, setGlobalSearch } = useFilterStore();
     const router = useRouter();
     const [isFocused, setIsFocused] = useState(false);
     const [localQuery, setLocalQuery] = useState(searchQuery);
+
+    const { data: response } = useQuery({
+        queryKey: ['products'],
+        queryFn: () => productService.getProducts(),
+    });
+    const products = response?.data?.products || [];
 
     // Sync local query with global query state
     useEffect(() => {
@@ -22,7 +30,7 @@ export function AISearch() {
         if (!localQuery || localQuery.length < 2) return [];
 
         const query = localQuery.toLowerCase();
-        return mockProducts
+        return products
             .filter((product: Product) =>
                 product.name.toLowerCase().includes(query) ||
                 product.category.toLowerCase().includes(query) ||
@@ -30,19 +38,23 @@ export function AISearch() {
             )
             .slice(0, 5) // Limit to 5 suggestions
             .map((product: Product) => product.name);
-    }, [localQuery]);
+    }, [localQuery, products]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        setGlobalSearch(localQuery); // Clear other filters on explicit search
-        router.push('/');
+        setGlobalSearch(localQuery);
+        if (localQuery.trim()) {
+            router.push(`/search?q=${encodeURIComponent(localQuery.trim())}`);
+        } else {
+            router.push('/');
+        }
         setIsFocused(false);
     };
 
     const handleSuggestionClick = (suggestion: string) => {
         setLocalQuery(suggestion);
-        setGlobalSearch(suggestion); // Clear other filters on suggestion click
-        router.push('/');
+        setGlobalSearch(suggestion);
+        router.push(`/search?q=${encodeURIComponent(suggestion.trim())}`);
         setIsFocused(false);
     };
 

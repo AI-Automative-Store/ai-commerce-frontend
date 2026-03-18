@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { Product } from '@/types/product.types';
-import { mockProducts } from '@/lib/mockData';
+import type { ComparisonResult } from '@/types/product.types';
+import { productService } from '@/services/product.service';
+import { apiProductToProduct } from '@/lib/productMapper';
 
 export interface AIVerdictType {
     winnerId: string;
@@ -11,93 +13,149 @@ export interface AIVerdictType {
             display: number;
             battery: number;
             overall: number;
-        }
+        };
     };
     prosCons: {
         [productId: string]: {
             pros: string[];
             cons: string[];
-        }
+        };
     };
 }
+
+const LOADING_STEPS = [
+    'AI analyzing 200+ data points…',
+    'Comparing specifications…',
+    'Calculating performance scores…',
+    'Generating verdict…',
+];
 
 interface CompareState {
     selectedProducts: Product[];
     intent: string;
+    priority: string | null;
     isAnalyzing: boolean;
+    loadingStep: string;
     aiVerdict: AIVerdictType | null;
+    comparison: ComparisonResult | null;
+    compareError: string | null;
 
-    // Actions
     addProduct: (product: Product) => void;
     removeProduct: (productId: string) => void;
     setIntent: (intent: string) => void;
-    analyzeComparison: () => void; // Mock analysis
+    setPriority: (priority: string | null) => void;
+    analyzeComparison: () => Promise<void>;
+    clearComparison: () => void;
+}
+
+function mapComparisonToVerdict(comparison: ComparisonResult, productIds: string[]): AIVerdictType {
+    const winnerId = comparison.winner_id || productIds[0];
+    const scoreCard = comparison.score_card || {};
+    const scores: AIVerdictType['scores'] = {};
+    productIds.forEach((id) => {
+        const perf = typeof scoreCard.performance?.[id] === 'number' ? scoreCard.performance[id] as number : 8;
+        const disp = typeof scoreCard.display?.[id] === 'number' ? scoreCard.display[id] as number : 8;
+        const bat = typeof scoreCard.battery?.[id] === 'number' ? scoreCard.battery[id] as number : 8;
+        scores[id] = {
+            performance: perf,
+            display: disp,
+            battery: bat,
+            overall: Number((((perf + disp + bat) / 3)).toFixed(1)),
+        };
+    });
+    return {
+        winnerId,
+        reasoning: comparison.final_verdict || comparison.summary || 'AI comparison complete.',
+        scores,
+        prosCons: comparison.pros_cons || {},
+    };
 }
 
 export const useCompareStore = create<CompareState>((set, get) => ({
-    selectedProducts: mockProducts.slice(0, 2), // Default with first 2 products for demo
+    selectedProducts: [],
     intent: '',
+    priority: null,
     isAnalyzing: false,
+    loadingStep: LOADING_STEPS[0],
     aiVerdict: null,
+    comparison: null,
+    compareError: null,
 
     addProduct: (product) => {
         const { selectedProducts } = get();
-        if (selectedProducts.length < 4 && !selectedProducts.find(p => p.id === product.id)) {
+        if (selectedProducts.length < 4 && !selectedProducts.find((p) => p.id === product.id)) {
             set({ selectedProducts: [...selectedProducts, product] });
         }
     },
 
     removeProduct: (productId) => {
         set((state) => ({
-            selectedProducts: state.selectedProducts.filter(p => p.id !== productId)
+            selectedProducts: state.selectedProducts.filter((p) => p.id !== productId),
+            comparison: null,
+            aiVerdict: null,
+            compareError: null,
         }));
     },
 
     setIntent: (intent) => set({ intent }),
 
-    analyzeComparison: () => {
-        set({ isAnalyzing: true });
+    setPriority: (priority) => set({ priority }),
 
-        // Mock AI Delay
-        setTimeout(() => {
-            const { selectedProducts } = get();
-            if (selectedProducts.length === 0) {
-                set({ isAnalyzing: false });
+    clearComparison: () => set({ comparison: null, aiVerdict: null, compareError: null }),
+
+    analyzeComparison: async () => {
+        const { selectedProducts, priority, intent } = get();
+        set({ isAnalyzing: true, compareError: null, loadingStep: LOADING_STEPS[0] });
+
+        if (selectedProducts.length < 2) {
+            set({ isAnalyzing: false, compareError: 'Select at least 2 products to compare.' });
+            return;
+        }
+        if (selectedProducts.length > 4) {
+            set({ isAnalyzing: false, compareError: 'Select at most 4 products.' });
+            return;
+        }
+
+        // Cycle loading steps every 800ms
+        const stepInterval = setInterval(() => {
+            const state = get();
+            if (!state.isAnalyzing) return;
+            const idx = LOADING_STEPS.indexOf(state.loadingStep);
+            const next = (idx + 1) % LOADING_STEPS.length;
+            set({ loadingStep: LOADING_STEPS[next] });
+        }, 800);
+
+        try {
+            const res = await productService.compareProducts({
+                productIds: selectedProducts.map((p) => p.id),
+                priority: priority || undefined,
+                intent: intent.trim() || undefined,
+            });
+            const data = (res as { data?: { products?: Record<string, unknown>[]; comparison?: ComparisonResult } }).data;
+            if (!data?.products || !data?.comparison) {
+                set({ isAnalyzing: false, compareError: 'Invalid response from server.' });
                 return;
             }
-
-            // Mock Intelligent Verdict
-            // In a real app, this would come from an LLM analysis of the products + intent
-            const winner = selectedProducts[0]; // Simple default winner for mock
-
-            const mockVerdict: AIVerdictType = {
-                winnerId: winner.id,
-                reasoning: `Based on your needs, the ${winner.name} stands out due to its superior performance-to-price ratio and modern features.`,
-                scores: {},
-                prosCons: {}
-            };
-
-            selectedProducts.forEach(p => {
-                mockVerdict.scores[p.id] = {
-                    performance: Math.floor(Math.random() * 2) + 8, // 8-10
-                    display: Math.floor(Math.random() * 2) + 8,
-                    battery: Math.floor(Math.random() * 3) + 7,
-                    overall: 0
-                };
-                // Calc average
-                const s = mockVerdict.scores[p.id];
-                s.overall = Number(((s.performance + s.display + s.battery) / 3).toFixed(1));
-
-                mockVerdict.prosCons[p.id] = {
-                    pros: p.features.slice(0, 3),
-                    cons: ['Higher price point', 'Limited availability'] // Generic cons
-                };
-            });
-
+            const products = data.products.map((p) => apiProductToProduct(p));
+            const comparison = data.comparison;
+            const productIds = products.map((p) => p.id);
+            const aiVerdict = mapComparisonToVerdict(comparison, productIds);
+            clearInterval(stepInterval);
             set({
-                aiVerdict: mockVerdict,
-                isAnalyzing: false
+                selectedProducts: products,
+                comparison,
+                aiVerdict,
+                isAnalyzing: false,
+                loadingStep: LOADING_STEPS[0],
+                compareError: null,
             });
-        }, 2000);
-    }
+        } catch (e) {
+            clearInterval(stepInterval);
+            set({
+                isAnalyzing: false,
+                loadingStep: LOADING_STEPS[0],
+                compareError: e instanceof Error ? e.message : 'Comparison failed. Try again.',
+            });
+        }
+    },
 }));
